@@ -1,694 +1,686 @@
 ﻿using System;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Windows.Forms;
-using System.Net;
-using System.IO;
-using System.Globalization;
-using System.IO.Ports;
-using System.Runtime.InteropServices;
-using System.Diagnostics;
-using Newtonsoft.Json;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Drawing;
+using System.Globalization;
+using System.Linq;
+using System.Net.Http;
+using System.Threading.Tasks;
+using System.Windows.Forms;
 using Microsoft.Win32;
-using System.Net.NetworkInformation;
-
-
+using Newtonsoft.Json;
+using System.IO;
+using Microsoft.Web.WebView2.WinForms;
 
 namespace FromMeteoZaOknom2
 {
-
-
     public partial class Form1 : Form
     {
-
-        [DllImport("KERNEL32.DLL", EntryPoint = "SetProcessWorkingSetSize", SetLastError = true, CallingConvention = CallingConvention.StdCall)]
-        internal static extern bool SetProcessWorkingSetSize(IntPtr pProcess, int dwMinimumWorkingSetSize, int dwMaximumWorkingSetSize);
-
-        [DllImport("KERNEL32.DLL", EntryPoint = "GetCurrentProcess", SetLastError = true, CallingConvention = CallingConvention.StdCall)]
-        internal static extern IntPtr GetCurrentProcess();
-
-        public static int i = 0; // сервисный счетчик  
-        public static Boolean changeColorMessageEnable;
-      //public static int countSerialPortError = 0;
-        public static Bitmap w_image;
-        
-        // Загрузка файла D:\thermometer.ini    
-
-        public static void WriteLog()
+        private readonly CultureInfo russianCulture = CultureInfo.CreateSpecificCulture("ru-RU");
+        private readonly HttpClient httpClient = new HttpClient();
+        private readonly Dictionary<int, Label[]> weatherPanels = new Dictionary<int, Label[]>();
+        private readonly Dictionary<string, (string ip, int correction, Label label, int counter)> sensorConfig = new()
         {
+            { "East", ("http://192.168.137.97:8097", 0, null /* label7 */, 0) },
+            { "West", ("http://192.168.137.98:8098", 0, null /* label6 */, 0) },
+            { "Inner", ("http://192.168.137.99:8099", 0, null /* label15 */, 0) }
+        };
+        private bool changeColorMessageEnable;
+        private const string OpenWeatherApiUrl = "http://api.openweathermap.org/data/2.5/forecast/daily?q=Moscow,ru&mode=json&units=metric&lang=ru&cnt=10&APPID=274135263c7242c24cb8c6e893bb4706";
+        private const string MeteoInfoUrl = "https://meteoinfo.ru/zaoknom";
 
-            StreamWriter writer = new StreamWriter(@"D:\MeteoLog.txt", true);
-            writer.WriteLine(DateTime.Now.ToString());
-            writer.Close();
-                       
+        public Form1()
+        {
+            InitializeComponent();
+            CacheWeatherPanels();
+            SetBrowserFeatureControl();
+            sensorConfig["East"] = (sensorConfig["East"].ip, sensorConfig["East"].correction, label7, sensorConfig["East"].counter);
+            sensorConfig["West"] = (sensorConfig["West"].ip, sensorConfig["West"].correction, label6, sensorConfig["West"].counter);
+            sensorConfig["Inner"] = (sensorConfig["Inner"].ip, sensorConfig["Inner"].correction, label15, sensorConfig["Inner"].counter);
         }
 
-        // преобразование UNIX времеми в обычные дату и время
-        static DateTime UnixDateTimeToDateTime(string UnixDate)
+        private void CacheWeatherPanels()
         {
-            long unix_dt = Convert.ToInt64(UnixDate) * 1000;
-            DateTime dt = (new DateTime(1970, 1, 1, 0, 0, 0, 0)).AddMilliseconds(unix_dt);
-            return dt;
+            var panels = Controls.OfType<Panel>().OrderBy(p => p.Name).ToList();
+            for (int i = 0; i < panels.Count; i++)
+            {
+                weatherPanels[i] = panels[i].Controls.OfType<Label>().OrderBy(l => l.Name).ToArray();
+            }
         }
-        
-        public static string LoadIniFile(String str)
+
+        private async void Form1_Load(object sender, EventArgs e)
         {
-            string comPort = "";
+            //WriteLog();
+
+            this.FormBorderStyle = FormBorderStyle.None;
+            this.WindowState = FormWindowState.Maximized;
+            this.Bounds = Screen.PrimaryScreen.Bounds;
+            LogError($"Размер формы: {this.Size.Width}x{this.Size.Height}, Экран: {Screen.PrimaryScreen.Bounds.Width}x{Screen.PrimaryScreen.Bounds.Height}");
+
+            timerForSensors.Enabled = true;
+            LogError("Таймер timerForSensors включён");
+            timerForSensors.Interval = 10*1000; // 10 сек.
+            timerForWeb.Enabled = true;
+            LogError("Таймер timerForWeb включён");
+            timerForWeb.Interval = 10*60000; // 10 мин.
+            Cursor.Position = new Point(0, 0);
+            await LoadInitialDataAsync();
+        }
+
+        private async Task LoadInitialDataAsync()
+        {
             try
             {
-                System.IO.StreamReader file = new System.IO.StreamReader(str);
-                comPort = file.ReadLine();
-                file.Close();
+                await LoadSensorsDataAsync("East");
+                await LoadSensorsDataAsync("West");
+                await LoadSensorsDataAsync("Inner");
+                //await Task.Delay(1000);
+                await LoadFromMeteoAndWeatherSiteAsync();
+            }
+            catch (Exception ex)
+            {
+                LogError($"Ошибка инициализации: {ex.Message}");
+            }
+            finally
+            {
+                timerFirstInit.Enabled = false;
+            }
+        }
+
+        private async Task LoadFromMeteoAndWeatherSiteAsync()
+        {
+            if (BackColor == Color.Black) return;
+
+            label8.Text = DateTime.Now.ToString("HH:mm", russianCulture);
+
+            try
+            {
+                UpdateSunriseSunset();
+                await UpdateWeatherForecastAsync();
+                await UpdateMeteoInfoAsync();
+            }
+            catch (Exception ex)
+            {
+                LogError($"Ошибка загрузки данных: {ex.Message}");
+            }
+        }
+
+        private void UpdateSunriseSunset()
+        {
+            DateTime date = DateTime.Today;
+            DateTime sunrise = DateTime.Now, sunset = DateTime.Now;
+            bool isSunrise = false, isSunset = false;
+
+            SunTimes.Instance.CalculateSunRiseSetTimes(
+                new SunTimes.LatitudeCoords(55, 45, 7, SunTimes.LatitudeCoords.Direction.North),
+                new SunTimes.LongitudeCoords(37, 36, 56, SunTimes.LongitudeCoords.Direction.East),
+                date, ref sunrise, ref sunset, ref isSunrise, ref isSunset);
+
+            label10.Text = $"Сегодня: восход {sunrise:HH:mm}, закат {sunset:HH:mm}";
+        }
+
+        private async Task UpdateWeatherForecastAsync()
+        {
+            if (!await CheckUrlAsync(OpenWeatherApiUrl)) return;
+
+            try
+            {
+                string json = await httpClient.GetStringAsync(OpenWeatherApiUrl);
+                var data = JsonConvert.DeserializeObject<RootObject>(json);
+
+                if (data?.list == null) throw new Exception("Неверный формат данных OpenWeather");
+
+                int panelCount = weatherPanels.Count;
+                for (int i = 0; i < panelCount && i < data.list.Count; i++)
+                {
+                    var forecast = data.list[i]; // Используем прямой порядок
+                    var labels = weatherPanels[i];
+
+                    labels[6].Text = UnixDateTimeToDateTime(forecast.dt.ToString()).ToString("d MMMM, dddd", russianCulture);
+                    labels[5].BackgroundImage = weatherPicture.WeatherIconToPicture(forecast.weather[0].icon);
+
+                    int nightTemp = Convert.ToInt32(Math.Round(forecast.temp.night));
+                    labels[4].Text = nightTemp >= 0 ? $"+{nightTemp}°" : $"{nightTemp}°";
+
+                    labels[3].Text = $"{Convert.ToInt32(forecast.pressure * 0.7501)} мм";
+
+                    int dayTemp = Convert.ToInt32(Math.Round(forecast.temp.day));
+                    labels[2].Text = dayTemp >= 0 ? $"+{dayTemp}°" : $"{dayTemp}°";
+
+                    labels[1].Text = WindDirection.getWindDirection(forecast.deg);
+                    labels[0].Text = forecast.weather[0].description;
+                }
+            }
+            catch (Exception ex)
+            {
+                LogError($"Ошибка OpenWeather: {ex.Message}");
+            }
+        }
+
+        private async Task UpdateMeteoInfoAsync()
+        {
+            if (!await CheckUrlAsync(MeteoInfoUrl))
+            {
+                webView21.Visible = false;
+                webView22.Visible = false;
+                return;
+            }
+
+            webView21.Visible = true;
+            webView22.Visible = true;
+          
+
+            try
+            {
+                await NavigateWebView2Async(webView21, MeteoInfoUrl, 480);
+                await NavigateWebView2Async(webView22, MeteoInfoUrl, 1025);
+            }
+            catch (Exception ex)
+            {
+                LogError($"Ошибка MeteoInfo: {ex.Message}");
+                webView21.Visible = false;
+                webView22.Visible = false;
+            }
+        }
+
+        private async Task NavigateWebView2Async(WebView2 browser, string url, int scrollY)
+          {
+          try
+          {
+            LogError($"Начало навигации WebView2: {url}, scrollY={scrollY}");
+            await browser.EnsureCoreWebView2Async();
+            browser.CoreWebView2.Navigate(url);
+
+            // Ожидание полной загрузки
+            var tcs = new TaskCompletionSource<bool>();
+            browser.CoreWebView2.NavigationCompleted += (s, e) =>
+            {
+                if (e.IsSuccess)
+                    tcs.TrySetResult(true);
+                else
+                    tcs.TrySetException(new Exception($"Navigation failed: {e.WebErrorStatus}"));
+            };
+            await tcs.Task;
+
+            // Задержка для динамической загрузки
+            await Task.Delay(1000);
+
+            // Прокрутка
+            await browser.CoreWebView2.ExecuteScriptAsync($"window.scrollTo(10, {scrollY});");
+            LogError($"Прокрутка к (10, {scrollY})");
+
+            // Скрытие элемента jm-back-top
+            for (int i = 0; i < 3; i++)
+            {
+                var elementExists = await browser.CoreWebView2.ExecuteScriptAsync("document.getElementById('jm-back-top') !== null");
+                if (elementExists == "true")
+                {
+                    await browser.CoreWebView2.ExecuteScriptAsync(@"
+                    var element = document.getElementById('jm-back-top');
+                    element.style.setProperty('display', 'none', 'important');
+                    element.style.visibility = 'hidden';
+                    element.style.opacity = '0';
+                    element.parentNode.removeChild(element);
+                ");
+                    LogError($"Элемент jm-back-top скрыт и удалён на попытке {i + 1}");
+                }
+                else
+                {
+                    LogError($"Элемент jm-back-top не найден на странице на попытке {i + 1}");
+                    break;
+                }
+                await Task.Delay(500);
+            }
+
+            // Установка прозрачного фона для всех ключевых элементов
+            await browser.CoreWebView2.ExecuteScriptAsync(@"
+            // Список селекторов
+            var selectors = [
+                '.sticky-bar',
+                '.dj-offcanvas-wrapper',
+                '.dj-offcanvas-pusher',
+                '.jm-top-bar',
+                '.mod-search-searchword91',
+                '.jm-bar',
+                '.jm-footer-menu-bg',
+                '.jm-footer-in',
+                '[class*=""jm-""]',
+                '[class*=""dj-""]',
+                'div[style*=""background-color""]',
+                'section[style*=""background-color""]'
+            ].join(', ');
+
+            // Установка прозрачного фона
+            var elements = document.querySelectorAll(selectors);
+            elements.forEach(el => {
+                el.style.setProperty('background-color', 'transparent', 'important');
+                el.style.setProperty('background-image', 'none', 'important');
+            });
+
+            // Прозрачность для html и body
+            document.documentElement.style.backgroundColor = 'transparent';
+            document.body.style.backgroundColor = 'transparent';
+
+            // Глобальный CSS для переопределения
+            var style = document.createElement('style');
+            style.innerHTML = `
+                html, body, .sticky-bar, .dj-offcanvas-wrapper, .dj-offcanvas-pusher,
+                .jm-top-bar, .mod-search-searchword91, .jm-bar, .jm-footer-menu-bg, .jm-footer-in,
+                [class*=""jm-""], [class*=""dj-""], div[style*=""background-color""], section[style*=""background-color""] {
+                    background-color: transparent !important;
+                    background-image: none !important;
+                }
+                html, body {
+                    overflow: hidden !important;
+                 }
+            `;
+            document.head.appendChild(style);
+
+            // Логирование найденных элементов
+            var foundElements = Array.from(elements).map(el => ({
+                tag: el.tagName,
+                id: el.id,
+                class: el.className,
+                background: window.getComputedStyle(el).backgroundColor
+            }));
+            JSON.stringify(foundElements);
+        ");
+            var foundElements = await browser.CoreWebView2.ExecuteScriptAsync("JSON.stringify(foundElements)");
+            LogError($"Найденные элементы с фонами: {foundElements}");
+
+            // Проверка оставшихся непрозрачных элементов
+            var remainingOpaque = await browser.CoreWebView2.ExecuteScriptAsync(@"
+            Array.from(document.querySelectorAll('*'))
+                .filter(el => window.getComputedStyle(el).backgroundColor !== 'rgba(0, 0, 0, 0)' && window.getComputedStyle(el).backgroundColor !== 'transparent')
+                .map(el => ({ tag: el.tagName, id: el.id, class: el.className, background: window.getComputedStyle(el).backgroundColor }))
+                .join(', ')
+        ");
+            LogError($"Оставшиеся непрозрачные элементы: {remainingOpaque}");
+
+            // Скрытие полос прокрутки
+            await browser.CoreWebView2.ExecuteScriptAsync(@"
+            document.documentElement.style.scrollbarWidth = 'none';
+            document.body.style.scrollbarWidth = 'none';
+            document.documentElement.style.msOverflowStyle = 'none';
+            document.body.style.msOverflowStyle = 'none';
+            var style = document.createElement('style');
+            style.innerHTML = `::-webkit-scrollbar { display: none; }`;
+            document.head.appendChild(style);
+        ");
+            LogError("Полосы прокрутки скрыты");
+
+            // Проверка текущей позиции прокрутки
+            var scrollYActual = await browser.CoreWebView2.ExecuteScriptAsync("window.scrollY");
+            LogError($"Текущая позиция прокрутки: {scrollYActual}");
+
+            var pageHeight = await browser.CoreWebView2.ExecuteScriptAsync("document.body.scrollHeight");
+            LogError($"Высота страницы: {pageHeight}");
+        }
+        catch (Exception ex)
+        {
+            LogError($"Ошибка в NavigateWebView2Async: {ex.Message}");
+        }
+    }
+    private async Task<bool> CheckUrlAsync(string url)
+        {
+            try
+            {
+                var response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+                return response.IsSuccessStatusCode;
             }
             catch
             {
-                comPort = "Не найден файл " + str;
+                return false;
             }
-            return comPort;
-        }
-        
-        public Form1()
-        {
-           
-            InitializeComponent();
-            SetBrowserFeatureControl();
-                        
         }
 
-        protected override bool ProcessCmdKey(ref Message m, Keys keyData)
+             private async Task LoadSensorsDataAsync(string sensor)
         {
-            bool blnProcess = false;
-            if (keyData == Keys.Escape) // по Escape закрываем эту программу
+            const int maxAttempts = 4;
+            const string errorDisplay = "CoEr";
+            const string sensorError = "SEr";
+
+            var config = sensorConfig[sensor];
+            try
             {
-                blnProcess = true;
-                this.Close();           // закрыть
-            }
-            if (keyData == Keys.A)      // по кл. А вызываем внешнюю программу
-            {
-                blnProcess = true;
-                Process proc = new Process();
-                proc.StartInfo.FileName = @"C:\Program Files\Vimicro Corporation\VMUVC\amcap.exe";
-                proc.StartInfo.Arguments = @"";
-                proc.Start();
-            }
-            if (blnProcess == true)
-                return true;
-            else
-                return base.ProcessCmdKey(ref m, keyData);
-        }
-
-        /*private void Key(object sender, KeyEventArgs e)
-        {
-            if (e.KeyCode == Keys.F7)
-            {
-                Form Form2 = new Form();
-                Process proc = new Process();
-                proc.StartInfo.FileName = @"C:\Program Files\Vimicro Corporation\VMUVC\amcap.exe";
-                proc.StartInfo.Arguments = "";
-                proc.Start();
-                Form2.Show();
-             }
-        }*/
-        
-        
-        private void Form1_Load(object sender, EventArgs e)
-        {
-            WriteLog();
-            //this.KeyDown += new KeyEventHandler(Key); // в свойствах формы Form1 необходимо установить KeyPreview в true
-            System.Windows.Forms.Cursor.Position = new Point(0, 0);
-            timer1.Enabled = true;
-            //webBrowser1.Visible = false;
-            //label10.Visible = true;
-         
-        }
-
-                
-        private void timer1_Tick_1(object sender, EventArgs e)
-        {
-            timer1.Enabled = false;  // срабатывает 1 раз при загрузке программы
-            loadSensorsData();
-            Wait(1000);
-            loadFromMeteoAndWeatherSite();
-        }
-
-        private void loadFromMeteoAndWeatherSite()
-        {
-            //IntPtr pHandle = GetCurrentProcess(); // обнуляем кэш браузера
-            //SetProcessWorkingSetSize(pHandle, -1, -1); // обнуляем кэш браузера
-            label8.Text = DateTime.Now.ToShortTimeString();
-            //webBrowser1.Visible = true;
-            //label10.Visible = false;
-            webBrowser2.Navigate("about:blank"); // обнуляем кэш браузера
-            webBrowser3.Navigate("about:blank"); // обнуляем кэш браузера
-
-            DateTime date = DateTime.Today;
-            bool isSunrise = false; bool isSunset = false;
-            DateTime sunrise = DateTime.Now; DateTime sunset = DateTime.Now;
-            // Coordinates of Moscow
-            SunTimes.Instance.CalculateSunRiseSetTimes(new SunTimes.LatitudeCoords(55, 45, 7, SunTimes.LatitudeCoords.Direction.North),
-                                                       new SunTimes.LongitudeCoords(37, 36, 56, SunTimes.LongitudeCoords.Direction.East),
-                                                       date, ref sunrise, ref sunset, ref isSunrise, ref isSunset);
-
-            label10.Text = "Сегодня: восход " + sunrise.ToString("HH:mm") + ", закат " + sunset.ToString("HH:mm");
-
-            if (BackColor != System.Drawing.Color.Black)
-            {
-
-                string openweather_api_string = @"http://api.openweathermap.org/data/2.5/forecast/daily?q=Moscow,ru&mode=json&units=metric&lang=ru&cnt=10&APPID=274135263c7242c24cb8c6e893bb4706";
-                if (CheckURL(openweather_api_string)) // ==========
+                if (sensor == "Inner")
                 {
-                    //webBrowser1.Visible = true;
-                   
-                        //MessageBox.Show("openweather доступен");
-                        string json = GetJSON.getJSONstring(openweather_api_string);
-                        RootObject data = JsonConvert.DeserializeObject<RootObject>(json);
-                        //label19.Text = UnixDateTimeToDateTime(data.list[1].dt.ToString()).ToString("dd MMMM, dddd", CultureInfo.CreateSpecificCulture("ru-RU"));
-                   
-                    // Считаем panel
-                    List<Control> panels = new List<Control>();
-                    foreach (Control control in this.Controls)
-                    {
-                        if (control.GetType() == typeof(Panel))
-                            panels.Add(control);
-                    }
+                    string data = await FetchInnerDataAsync(config.ip, config.correction);
+                    string[] dataParts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries); // Исправлено
 
-                    int pcount = panels.Count(); // число panels прогноза
-                    for (int i = pcount-1; i >= 0; i--)
+                    if (dataParts[0] == "-145")
                     {
-                        // считаем label on panel
-                        List<Control> panelLabels = new List<Control>();
-                        foreach (Control control in panels[i].Controls)
+                        config.label.Text = sensorError;
+                        label76.Text = "---";
+                        label2.Text = "---";
+                        label4.Text = "---";
+                    }
+                    else
+                    {
+                        config.label.Text = $"{dataParts[0]}˚";
+                        label76.Text = $"вл. {dataParts[1]}%";
+                        label2.Text = dataParts[2];
+                        if (int.TryParse(dataParts[2], out int pressure))
                         {
-                            if (control.GetType() == typeof(Label))
-                                panelLabels.Add(control);
+                            label4.Text = (pressure / 1.33333333).ToString("0");
+                            label2.Text += " гПа";
                         }
-
-                        
-                        panelLabels[6].Text = UnixDateTimeToDateTime(data.list[pcount-i-1].dt.ToString()).ToString("d MMMM, dddd", CultureInfo.CreateSpecificCulture("ru-RU")); // дата   
-                        panelLabels[5].BackgroundImage = weatherPicture.WeatherIconToPicture(data.list[pcount - i-1].weather[0].icon); // картинка погоды 
-                        
-                        string plus = " ";
-                        int tnight = Convert.ToInt32(Math.Round(data.list[pcount - i-1].temp.night));
-                        if (tnight == 0) plus = "  ";
-                        if (tnight >= 1) plus = "+";
-                        panelLabels[4].Text = plus + tnight.ToString("0") + "°"; // температура ночью
-                        
-                        panelLabels[3].Text = Convert.ToInt32(data.list[pcount - i-1].pressure * 0.7501).ToString("0") + " мм"; // давление
-                        
-                        plus = " ";
-                        int tday = Convert.ToInt32(Math.Round(data.list[pcount - i-1].temp.day));
-                        if (tday == 0) plus = "  ";
-                        if (tday >= 1) plus = "+";
-                        panelLabels[2].Text = plus + tday.ToString("0") + "°"; // температура днем
-                        
-                        panelLabels[1].Text = WindDirection.getWindDirection(data.list[pcount - i-1].deg); // ветер
-                        panelLabels[0].Text = data.list[pcount - i-1].weather[0].description; // описание погоды
-
-                     }
-
-                    
-                }
-                else
-                {
-                    //webBrowser1.Visible = false;
-                    //MessageBox.Show("openweather недоступен");
-                }
-
-                if (CheckURL(@"https://meteoinfo.ru/zaoknom"))
-                {
-                    webBrowser2.Visible = true;
-                    webBrowser3.Visible = true;
-                    webBrowser2.ScrollBarsEnabled = false;
-                    webBrowser3.ScrollBarsEnabled = false;
-                    try
-                    {
-
-                        while (webBrowser2.ReadyState != WebBrowserReadyState.Complete) Application.DoEvents();
-                        //if (!webBrowser2.IsBusy) webBrowser2.Refresh();
-                        webBrowser2.Navigate(@"https://meteoinfo.ru/zaoknom");
-                        webBrowser2.Document.Window.ScrollTo(10, 480);               //вднх 280; киевская, краснопресненская 480
-                        Wait(2000);
-                        webBrowser2.Document.GetElementById("jm-back-top").Style = "display: none;";
-                        //webBrowser2.Refresh();
-                        
-                        
-                                                
-                        while (webBrowser3.ReadyState != WebBrowserReadyState.Complete) Application.DoEvents();
-                        //if (!webBrowser3.IsBusy) webBrowser3.Refresh();
-                        webBrowser3.Navigate(@"https://meteoinfo.ru/zaoknom");
-                        webBrowser3.Document.Window.ScrollTo(0, 1025);              //вднх 805; киевская, краснопресненская 1025
-                        Wait(2000);
-                        webBrowser3.Document.GetElementById("jm-back-top").Style = "display: none;";
-                        //webBrowser3.Refresh();
-                        
+                        else
+                        {
+                            label4.Text = "---";
+                        }
                     }
-                    catch { }
                 }
                 else
                 {
-                    webBrowser2.Visible = false;
-                    webBrowser3.Visible = false;
+                    string temp = await FetchTemperatureAsync(config.ip, config.correction);
+                    if (temp == "------")
+                    {
+                        config = (config.ip, config.correction, config.label, config.counter + 1);
+                        if (config.counter >= maxAttempts)
+                        {
+                            config.label.Text = errorDisplay;
+                            config = (config.ip, config.correction, config.label, 0);
+                        }
+                    }
+                    else
+                    {
+                        config.label.Text = $"{temp}˚";
+                        config = (config.ip, config.correction, config.label, 0);
+                    }
+                    sensorConfig[sensor] = config;
                 }
             }
-            
-        } //End of loadFromMeteoAndWeatherSite()
-        
-        public static void Wait(int WaitMilliSeconds)
-        {
-            DateTime timeout = DateTime.Now.AddMilliseconds(WaitMilliSeconds);
-            while (DateTime.Now < timeout)
+            catch (Exception ex)
             {
-                Application.DoEvents();
-            }
-        }
-        
-        
-        // время последней загрузки с сайта meteo и openweather, срабатывает раз в 1 мин. / раз в 10 мин.
-        private void timerOneTickPerMinute_Tick(object sender, EventArgs e)
-        {
-
-            try
-            {
-                loadFromMeteoAndWeatherSite();
-            }
-
-            catch { }
-        }
-
-        //Таймер для опроса датчиков каждые 20 сек.
-        private void timerForSensorsOneTickPer20sec_Tick(object sender, EventArgs e)
-        {
-            try
-            {
-                loadSensorsData();
-            }
-
-            catch { }
-
-        }
-
-        private void loadSensorsData()
-        {
-            string str = "---";
-            string outsideEastIP = "http://192.168.137.97:8097";
-            //MessageBox.Show(outsideEastIP.Substring(7,14));
-            string outsideWestIP = "http://192.168.137.98:8098";
-            string innerIP = "http://192.168.137.99:8099";
-            int correctionOutsideEast = 0; /////////corr//////////////////////////////
-            int correctionOutsideWest = 0; /////////////corr//////////////////////////
-            int correctionInner = 0; ///////////////////////corr//////////////////////
-
-            // температура с востока, вывод на форму
-
-            try
-            {
-                str = tempFrom18B20(outsideEastIP, correctionOutsideEast);
-            }
-            catch { label7.Text = "CoEr"; }
-            //MessageBox.Show(str); 
-            label7.Text = str + "˚"; // East (3 символа +  "˚"
-            Wait(200);
-
-            // температура с запада, вывод на форму
-
-            try
-            {
-                str = tempFrom18B20(outsideWestIP, correctionOutsideWest);
-            }
-            catch { label6.Text = "CoEr"; }
-            label6.Text = str + "˚"; // West (3 символа +  "˚")
-            Wait(200);
-
-            // температура, давление в гПа, влажность внутри, вывод на форму
-
-            try
-            {
-                str = dataFromBME280(innerIP, correctionInner);
-            }
-            catch 
+                LogError($"Ошибка загрузки {sensor}: {ex.Message}");
+                if (sensor == "Inner")
                 {
-                    label15.Text = "CoEr";
-                    label2.Text = "---"; // pressure(4 символа)
-                    label76.Text = "---"; // Humidity (3 символа +  "%")
+                    config.label.Text = errorDisplay;
+                    label2.Text = "---";
+                    label76.Text = "---";
                     label4.Text = "---";
                 }
-            
-            string[] dataStr = str.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            if (dataStr[0] == "-145")
-            {
-                label15.Text = "SEr"; // Inner temperature(3 символа +  "˚")
-                label76.Text = "---"; // Humidity (3 символа +  "%")
-                label2.Text = "---"; // pressure(4 символа)
-                label4.Text = "---";
             }
-            else
-            {
-                label15.Text = dataStr[0] + "˚"; // Inner temperature(3 символа +  "˚")
-                label76.Text = "вл. " + dataStr[1] + "%"; // Humidity (3 символа +  "%")
-                label2.Text = dataStr[2]; // pressure(4 символа)
-
-            }
-             //label4.Text = "760";    // Pressure (3 символа)
-            try
-            {
-                int press = Convert.ToInt32(label2.Text);
-                label4.Text = (press / 1.33333333).ToString("0");
-                label2.Text += " гПа";
-            }
-            catch { }
         }
 
-        private string tempFrom18B20(string sensorIP, int correction)
+        private async Task<string> FetchTemperatureAsync(string ip, int correction)
         {
-            //string temperature = "-2";
-            int temperatureInt = 0;
-            string temperature = "------";
-            var webClient = new WebClient();
+            if (!await PingServerAsync(ip.Substring(7, ip.IndexOf(':', 7) - 7)))
+                return "------";
+
             try
             {
-                temperature = webClient.DownloadString(sensorIP);
+                string response = await httpClient.GetStringAsync(ip);
+                if (response == "SEr") return "------";
+                if (int.TryParse(response, out int temp))
+                    return (temp + correction).ToString();
+                return "------";
             }
-            catch { }
-            //MessageBox.Show(temperature);
+            catch
+            {
+                return "------";
+            }
+        }
+
+        private async Task<string> FetchInnerDataAsync(string ip, int correction)
+        {
+            if (!await PingServerAsync(ip.Substring(7, ip.IndexOf(':', 7) - 7)))
+                return "--- --- ----";
+
             try
             {
-                if (temperature != "SEr   ")
+                string response = await httpClient.GetStringAsync(ip);
+                string[] parts = response.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries); // Исправлено
+                if (parts.Length < 3 || !int.TryParse(parts[0], out int temp))
+                    return "--- --- ----";
+                parts[0] = (temp + correction).ToString();
+                return string.Join(" ", parts);
+            }
+            catch
+            {
+                return "--- --- ----";
+            }
+        }
+
+        private async Task<bool> PingServerAsync(string address)
+        {
+            try
+            {
+                using (var ping = new System.Net.NetworkInformation.Ping())
                 {
-                    temperatureInt = Convert.ToInt32(temperature) + correction;
-                    temperature = Convert.ToString(temperatureInt);
-                    //if (temperatureInt > 0) temperature = "+" + temperature;
-
+                    var reply = await ping.SendPingAsync(address, 200);
+                    return reply.Status == System.Net.NetworkInformation.IPStatus.Success;
                 }
-                else temperature = temperature.Trim();
             }
-            catch { }
-            return temperature;
-        }
-
-        private string dataFromBME280(string sensorIP, int correctionTempBME280)
-        {
-            //string data = "-22 100 1234";
-            int temperatureInt = 0;
-            var webClient = new WebClient();
-            string data = webClient.DownloadString(sensorIP);
-            string[] tempStr = data.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            try
+            catch
             {
-
-                temperatureInt = Convert.ToInt32(tempStr[0]) + correctionTempBME280;
-                tempStr[0] = Convert.ToString(temperatureInt);
-                data = tempStr[0] + ' ' + tempStr[1] + ' ' + tempStr[2];
+                return false;
             }
-            catch { }
-            //MessageBox.Show(data);
-            return data;
         }
 
-
-        // текущее время, срабатывает раз в секунду
         private void timerOneTickPerSecond_Tick(object sender, EventArgs e)
         {
-            //i++;
-
-            /*try
+            //ServiceLabel.Text = "вход в timerOneTickPerSecond";
+            if (label18.Tag == null || label18.Tag.ToString() != timerForWeb.Interval.ToString())
             {
-                serialPort1.Write("a");
+                label18.Text = $"инт. {timerForWeb.Interval / 60000} мин.";
+                label18.Tag = timerForWeb.Interval.ToString();
+                //ServiceLabel.Text = timerOneTickPerMinute.Interval.ToString();
             }
-            catch { }*/
-            label18.Text = "инт. " + (timerOneTickPerMinute.Interval/60000).ToString() + " мин.";
-            if (((DateTime.Now.Hour > 22) || (DateTime.Now.Hour < 6)) && (BackColor != System.Drawing.Color.Black)) NightPattern();
-            if (((DateTime.Now.Hour > 5) && (DateTime.Now.Hour < 23)) && (BackColor == System.Drawing.Color.Black)) DayPattern();
-            
-            label3.Text = DateTime.Now.ToString("  d MMMM yyyy, dddd",CultureInfo.CreateSpecificCulture("ru-RU"));
-            //label3.Text = DateTime.Now.ToString(" 29 сентября 2099, воскресенье", CultureInfo.CreateSpecificCulture("ru-RU"));
-            label14.Text = DateTime.Now.ToString("   HH:mm:ss", CultureInfo.CreateSpecificCulture("ru-RU"));
-            //label14.Text = "   00:00:00";
-            // d MMMM yyyy - 1 сентября 2014 (сентября - 8 симв.)
-            // dddd - полное название дня (воскресенье - 11 симв.)
-            // HH:mm:ss - 01:11:58
-            //label7.Text = "+14˚";
-            //label6.Text = "+16˚";
-            //label15.Text = "+26˚";
+
+            int currentHour = DateTime.Now.Hour;
+            bool isNight = currentHour > 22 || currentHour < 6;
+            if (isNight && BackColor != Color.Black)
+                NightPattern();
+            else if (!isNight && BackColor == Color.Black)
+                DayPattern();
+
+            DateTime now = DateTime.Now;
+            label3.Text = now.ToString("d MMMM yyyy, dddd", russianCulture);
+            label14.Text = now.ToString("HH:mm:ss", russianCulture);
+
             changeMessageColor();
-               
-            }
- 
-        private void changeMessageColor()
-        {
-            if (changeColorMessageEnable)
-            {
-                if (label9.BackColor.Name == "Coral")
-                    label9.BackColor = System.Drawing.Color.Transparent;
-                else
-                    label9.BackColor = System.Drawing.Color.Coral;
-            }
-            else label9.BackColor = System.Drawing.Color.Transparent;
         }
 
-        
-        private void checkBox1_CheckedChanged(object sender, EventArgs e)
+        private async void timerForWeb_Tick(object sender, EventArgs e)
         {
-            if (checkBox1.Checked)
-            {
-                changeColorMessageEnable = true;
-            }
-            else
-            {
-                changeColorMessageEnable = false;
-                label9.BackColor = System.Drawing.Color.Transparent;
-            }
-        }
-
-        // Функция возвращает true в случае если адрес url доступен и false если адрес не существует.
-        static bool CheckURL(String url)
-        {
-            if (String.IsNullOrEmpty(url))
-                return false;
-            WebRequest request = WebRequest.Create(url);
+            //ServiceLabel.Text = "вход в timerForWeb";
             try
             {
-                HttpWebResponse res = request.GetResponse() as HttpWebResponse;
-                if (res.StatusDescription == "OK")
+                await LoadFromMeteoAndWeatherSiteAsync();
+
+            }
+            catch (Exception ex)
+            {
+                LogError($"Ошибка таймера погоды: {ex.Message}");
+            }
+        }
+
+        private async void timerForSensors_Tick(object sender, EventArgs e)
+        {
+            //ServiceLabel.Text = "вход в timerForSensors";
+            string[] regions = { "East", "West", "Inner" };
+            foreach (var region in regions)
+            {
+                try
                 {
-                    return true;
+                    await LoadSensorsDataAsync(region);
+                    //await Task.Delay(10000);
+                }
+                catch (Exception ex)
+                {
+                    LogError($"Ошибка датчика {region}: {ex.Message}");
                 }
             }
-            catch { }
-            return false;
         }
-        
-      //Проверка доступности сервера (ping)
-        public bool ping_server(string server_address)
+        private void changeMessageColor()
         {
-            bool result = false;
-            Ping Pinger = new Ping();
-            PingReply Reply = Pinger.Send(server_address, 200) ; //TTL = 200 ms
-            if (Reply.Status.ToString() == "TimedOut") result = false;
-            if (Reply.Status.ToString() == "Success") result = true;
-            //MessageBox.Show(result.ToString());
-            return result;
+            label9.BackColor = changeColorMessageEnable
+                ? label9.BackColor == Color.Coral ? Color.Transparent : Color.Coral
+                : Color.Transparent;
         }
-        
+
+        private void checkBox1_CheckedChanged(object sender, EventArgs e)
+        {
+            changeColorMessageEnable = checkBox1.Checked;
+            if (!checkBox1.Checked)
+                label9.BackColor = Color.Transparent;
+        }
+
         private void NightPattern()
         {
             try
             {
-                System.Windows.Forms.Cursor.Hide();
-                webBrowser2.Visible = false;
-                webBrowser3.Visible = false;
-                label10.Visible = false; // "Ошибка загрузки прогноза" 
-                label17.Visible = false; // "Данные с метеостанции не поступают" 
-                label16.Visible = false; // домик
-                label1.Visible = false;
-                label8.Visible = false;
-                label9.Visible = false;
-                label18.Visible = false;
-                BackgroundImage = FromMeteoZaOknom2.Properties.Resources.NightForMeteo;
-                BackColor = System.Drawing.Color.Black;
-                ForeColor = System.Drawing.Color.FromArgb(64, 64, 64);
-                checkBox1.Visible = false;
-                label9.ForeColor = System.Drawing.Color.FromArgb(64, 64, 64);
-                /*List<Control> panels = new List<Control>();*/
-                foreach (Control control in this.Controls)
-                {
-                    if (control.GetType() == typeof(Panel))
-                        control.Visible = false;
-                }
-                
-                
+                Cursor.Hide();
+                BackColor = Color.Black;
+                ForeColor = Color.FromArgb(64, 64, 64);
+                BackgroundImage = Properties.Resources.NightForMeteo;
+                label9.ForeColor = Color.FromArgb(64, 64, 64);
+                var controls = new List<Control> { webView21, webView22, label10, label17, label16, label1, label8, label9, label18, checkBox1 };
+                controls.ForEach(control => control.Visible = false);
+                Controls.OfType<Panel>().ToList().ForEach(panel => panel.Visible = false);
             }
-            catch { label13.Text = "Ошибка переключения в ночной режим"; }
-            
+            catch (Exception ex)
+            {
+                LogError($"Ошибка ночного режима: {ex.Message}");
+                label13.Text = "Ошибка переключения в ночной режим";
+            }
         }
 
         private void DayPattern()
         {
             try
             {
-                System.Windows.Forms.Cursor.Show();
-                BackgroundImage = FromMeteoZaOknom2.Properties.Resources.backForMeteo2;
-                BackColor = System.Drawing.SystemColors.Control;
-                ForeColor = System.Drawing.SystemColors.ControlText;
-                webBrowser2.Visible = true;
-                webBrowser3.Visible = true;
-                label10.Visible = true; // "Ошибка загрузки прогноза" 
-                label17.Visible = true; // "Данные с метеостанции не поступают" 
-                label16.Visible = true; // домик
-                label1.Visible = true;
-                label8.Visible = true;
-                label9.Visible = true;
-                label18.Visible = true;
-                checkBox1.Visible = true;
-                label9.ForeColor = System.Drawing.SystemColors.ControlText;
-                foreach (Control control in this.Controls)
-                {
-                    if (control.GetType() == typeof(Panel))
-                        control.Visible = true;
-                }
-                
-             }
-            catch { label13.Text = "Ошибка переключения в дневной режим"; }
+                Cursor.Show();
+                BackColor = SystemColors.Control;
+                ForeColor = SystemColors.ControlText;
+                BackgroundImage = Properties.Resources.backForMeteo2;
+                label9.ForeColor = SystemColors.ControlText;
+                var controls = new List<Control> { webView21, webView22, label10, label17, label16, label1, label8, label9, label18, checkBox1 };
+                controls.ForEach(control => control.Visible = true);
+                Controls.OfType<Panel>().ToList().ForEach(panel => panel.Visible = true);
+            }
+            catch (Exception ex)
+            {
+                LogError($"Ошибка дневного режима: {ex.Message}");
+                label13.Text = "Ошибка переключения в дневной режим";
+            }
         }
 
-        // закрыть программу - щелчок на домике
         private void label16_Click(object sender, EventArgs e)
         {
-            this.Close();
+            Close();
         }
 
-        // переключение интервала загрузки погоды с сайтов: 1 мин. или 10 мин.
         private void label18_Click(object sender, EventArgs e)
         {
-            if (timerOneTickPerMinute.Interval == 60000)
-            {
-                timerOneTickPerMinute.Interval = 600000;
-                label18.Text = "инт. " + (timerOneTickPerMinute.Interval / 60000).ToString() + " мин.";
-                return;
-            }
-            if (timerOneTickPerMinute.Interval == 600000)
-            {
-                timerOneTickPerMinute.Interval = 60000;
-                label18.Text = "инт. " + (timerOneTickPerMinute.Interval / 60000).ToString() + " мин.";
-                return;
-            }
-            
-
+            const int OneMinuteMs = 60000;
+            const int TenMinutesMs = 600000;
+            timerForWeb.Interval = timerForWeb.Interval == OneMinuteMs ? TenMinutesMs : OneMinuteMs;
+            label18.Text = $"инт. {timerForWeb.Interval / OneMinuteMs} мин.";
         }
 
-        // остановка всех таймеров при нажатии на время
         private void label14_Click(object sender, EventArgs e)
         {
-            if (timerOneTickPerSecond.Enabled == true)
+            timerOneTickPerSecond.Enabled = !timerOneTickPerSecond.Enabled;
+        }
+
+        /*private void WriteLog()
+        {
+            try
             {
-                timerOneTickPerSecond.Enabled = false;
-                return;
+                File.AppendAllText(@"D:\MeteoLog.txt", $"{DateTime.Now}\n");
             }
-            if (timerOneTickPerSecond.Enabled == false)
+            catch (Exception ex)
             {
-                timerOneTickPerSecond.Enabled = true;
-                return;
+                LogError($"Ошибка логирования: {ex.Message}"); 
+            }
+        }
+        */
+        private void LogError(string message)
+        {
+            Console.WriteLine($"{DateTime.Now:HH:mm:ss}: {message}");
+            //ServiceLabel.Text += $"{DateTime.Now:HH:mm:ss}: {message}\r\n";//  \r\n после {message} для перевода строки
+        }
+
+        private static DateTime UnixDateTimeToDateTime(string unixDate)
+        {
+            try
+            {
+                long unixMs = Convert.ToInt64(unixDate) * 1000;
+                return new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(unixMs).ToLocalTime();
+            }
+            catch
+            {
+                return DateTime.Now;
             }
         }
 
-        private void webBrowser2_DocumentCompleted(object sender, WebBrowserDocumentCompletedEventArgs e)
+        // Заглушки для отсутствующих классов
+        private class RootObject
         {
-
+            public List<Forecast> list { get; set; }
         }
 
-
-        private void SetBrowserFeatureControlKey(string feature, string appName, uint value)
+        private class Forecast
         {
-            using (var key = Registry.CurrentUser.CreateSubKey(
-                String.Concat(@"Software\Microsoft\Internet Explorer\Main\FeatureControl\", feature),
-                RegistryKeyPermissionCheck.ReadWriteSubTree))
-            {
-                key.SetValue(appName, (UInt32)value, RegistryValueKind.DWord);
-            }
+            public long dt { get; set; }
+            public Temperature temp { get; set; }
+            public double pressure { get; set; }
+            public int deg { get; set; }
+            public List<Weather> weather { get; set; }
+        }
+
+        private class Temperature
+        {
+            public double day { get; set; }
+            public double night { get; set; }
+        }
+
+        private class Weather
+        {
+            public string icon { get; set; }
+            public string description { get; set; }
         }
 
         private void SetBrowserFeatureControl()
         {
-            // http://msdn.microsoft.com/en-us/library/ee330720(v=vs.85).aspx
-
-            // FeatureControl settings are per-process
             var fileName = System.IO.Path.GetFileName(Process.GetCurrentProcess().MainModule.FileName);
-
-            // make the control is not running inside Visual Studio Designer
-            if (String.Compare(fileName, "devenv.exe", true) == 0 || String.Compare(fileName, "XDesProc.exe", true) == 0)
+            if (string.Equals(fileName, "devenv.exe", StringComparison.OrdinalIgnoreCase) || string.Equals(fileName, "XDesProc.exe", StringComparison.OrdinalIgnoreCase))
                 return;
 
-            SetBrowserFeatureControlKey("FEATURE_BROWSER_EMULATION", fileName, GetBrowserEmulationMode()); // Webpages containing standards-based !DOCTYPE directives are displayed in IE10 Standards mode.
-            SetBrowserFeatureControlKey("FEATURE_AJAX_CONNECTIONEVENTS", fileName, 1);
-            SetBrowserFeatureControlKey("FEATURE_ENABLE_CLIPCHILDREN_OPTIMIZATION", fileName, 1);
-            SetBrowserFeatureControlKey("FEATURE_MANAGE_SCRIPT_CIRCULAR_REFS", fileName, 1);
-            SetBrowserFeatureControlKey("FEATURE_DOMSTORAGE ", fileName, 1);
-            SetBrowserFeatureControlKey("FEATURE_GPU_RENDERING ", fileName, 1);
-            SetBrowserFeatureControlKey("FEATURE_IVIEWOBJECTDRAW_DMLT9_WITH_GDI  ", fileName, 0);
-            SetBrowserFeatureControlKey("FEATURE_DISABLE_LEGACY_COMPRESSION", fileName, 1);
-            SetBrowserFeatureControlKey("FEATURE_LOCALMACHINE_LOCKDOWN", fileName, 0);
-            SetBrowserFeatureControlKey("FEATURE_BLOCK_LMZ_OBJECT", fileName, 0);
-            SetBrowserFeatureControlKey("FEATURE_BLOCK_LMZ_SCRIPT", fileName, 0);
-            SetBrowserFeatureControlKey("FEATURE_DISABLE_NAVIGATION_SOUNDS", fileName, 1);
-            SetBrowserFeatureControlKey("FEATURE_SCRIPTURL_MITIGATION", fileName, 1);
-            SetBrowserFeatureControlKey("FEATURE_SPELLCHECKING", fileName, 0);
-            SetBrowserFeatureControlKey("FEATURE_STATUS_BAR_THROTTLING", fileName, 1);
-            SetBrowserFeatureControlKey("FEATURE_TABBED_BROWSING", fileName, 1);
-            SetBrowserFeatureControlKey("FEATURE_VALIDATE_NAVIGATE_URL", fileName, 1);
-            SetBrowserFeatureControlKey("FEATURE_WEBOC_DOCUMENT_ZOOM", fileName, 1);
-            SetBrowserFeatureControlKey("FEATURE_WEBOC_POPUPMANAGEMENT", fileName, 0);
-            SetBrowserFeatureControlKey("FEATURE_WEBOC_MOVESIZECHILD", fileName, 1);
-            SetBrowserFeatureControlKey("FEATURE_ADDON_MANAGEMENT", fileName, 0);
-            SetBrowserFeatureControlKey("FEATURE_WEBSOCKET", fileName, 1);
-            SetBrowserFeatureControlKey("FEATURE_WINDOW_RESTRICTIONS ", fileName, 0);
-            SetBrowserFeatureControlKey("FEATURE_XMLHTTP", fileName, 1);
+            SetBrowserFeatureControlKey("FEATURE_BROWSER_EMULATION", fileName, GetBrowserEmulationMode());
         }
 
-        private UInt32 GetBrowserEmulationMode()
+        private void SetBrowserFeatureControlKey(string feature, string appName, uint value)
+        {
+            using (var key = Registry.CurrentUser.CreateSubKey($@"Software\Microsoft\Internet Explorer\Main\FeatureControl\{feature}", RegistryKeyPermissionCheck.ReadWriteSubTree))
+            {
+                key?.SetValue(appName, value, RegistryValueKind.DWord);
+            }
+        }
+
+        private uint GetBrowserEmulationMode()
         {
             int browserVersion = 7;
-            using (var ieKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Internet Explorer",
-                RegistryKeyPermissionCheck.ReadSubTree,
-                System.Security.AccessControl.RegistryRights.QueryValues))
+            using (var ieKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Internet Explorer", RegistryKeyPermissionCheck.ReadSubTree))
             {
-                var version = ieKey.GetValue("svcVersion");
-                if (null == version)
-                {
-                    version = ieKey.GetValue("Version");
-                    if (null == version)
-                        throw new ApplicationException("Microsoft Internet Explorer is required!");
-                }
-                int.TryParse(version.ToString().Split('.')[0], out browserVersion);
+                var version = ieKey?.GetValue("svcVersion") ?? ieKey?.GetValue("Version");
+                if (version != null)
+                    int.TryParse(version.ToString().Split('.')[0], out browserVersion);
             }
 
-            UInt32 mode = 11000; // Internet Explorer 11. Webpages containing standards-based !DOCTYPE directives are displayed in IE11 Standards mode. Default value for Internet Explorer 11.
-            switch (browserVersion)
+            return browserVersion switch
             {
-                case 7:
-                    mode = 7000; // Webpages containing standards-based !DOCTYPE directives are displayed in IE7 Standards mode. Default value for applications hosting the WebBrowser Control.
-                    break;
-                case 8:
-                    mode = 8000; // Webpages containing standards-based !DOCTYPE directives are displayed in IE8 mode. Default value for Internet Explorer 8
-                    break;
-                case 9:
-                    mode = 9000; // Internet Explorer 9. Webpages containing standards-based !DOCTYPE directives are displayed in IE9 mode. Default value for Internet Explorer 9.
-                    break;
-                case 10:
-                    mode = 10000; // Internet Explorer 10. Webpages containing standards-based !DOCTYPE directives are displayed in IE10 mode. Default value for Internet Explorer 10.
-                    break;
-                default:
-                    // use IE11 mode by default
-                    break;
-            }
-
-            return mode;
+                7 => 7000,
+                8 => 8000,
+                9 => 9000,
+                10 => 10000,
+                _ => 11000
+            };
         }
 
-      
-
-      
-        
+  
     }
 }

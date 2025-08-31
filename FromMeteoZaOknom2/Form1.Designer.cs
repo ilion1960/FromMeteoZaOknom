@@ -29,10 +29,9 @@
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
-            this.timerOneTickPerMinute = new System.Windows.Forms.Timer(this.components);
             this.timerOneTickPerSecond = new System.Windows.Forms.Timer(this.components);
             this.label1 = new System.Windows.Forms.Label();
-            this.timer1 = new System.Windows.Forms.Timer(this.components);
+            this.timerFirstInit = new System.Windows.Forms.Timer(this.components);
             this.label3 = new System.Windows.Forms.Label();
             this.label4 = new System.Windows.Forms.Label();
             this.label5 = new System.Windows.Forms.Label();
@@ -47,20 +46,17 @@
             this.label15 = new System.Windows.Forms.Label();
             this.label16 = new System.Windows.Forms.Label();
             this.checkBox1 = new System.Windows.Forms.CheckBox();
-            this.webBrowser2 = new System.Windows.Forms.WebBrowser();
-            this.webBrowser3 = new System.Windows.Forms.WebBrowser();
             this.label2 = new System.Windows.Forms.Label();
             this.label17 = new System.Windows.Forms.Label();
             this.label18 = new System.Windows.Forms.Label();
-            this.serialPort1 = new System.IO.Ports.SerialPort(this.components);
             this.panel1 = new System.Windows.Forms.Panel();
-            this.label25 = new System.Windows.Forms.Label();
-            this.label24 = new System.Windows.Forms.Label();
-            this.label23 = new System.Windows.Forms.Label();
-            this.label22 = new System.Windows.Forms.Label();
-            this.label21 = new System.Windows.Forms.Label();
-            this.label20 = new System.Windows.Forms.Label();
             this.label19 = new System.Windows.Forms.Label();
+            this.label20 = new System.Windows.Forms.Label();
+            this.label21 = new System.Windows.Forms.Label();
+            this.label22 = new System.Windows.Forms.Label();
+            this.label23 = new System.Windows.Forms.Label();
+            this.label24 = new System.Windows.Forms.Label();
+            this.label25 = new System.Windows.Forms.Label();
             this.panel2 = new System.Windows.Forms.Panel();
             this.label26 = new System.Windows.Forms.Label();
             this.label27 = new System.Windows.Forms.Label();
@@ -118,9 +114,13 @@
             this.label73 = new System.Windows.Forms.Label();
             this.label74 = new System.Windows.Forms.Label();
             this.label75 = new System.Windows.Forms.Label();
-            this.timerForSensorsOneTickPer20sec = new System.Windows.Forms.Timer(this.components);
             this.label13 = new System.Windows.Forms.Label();
             this.label76 = new System.Windows.Forms.Label();
+            this.ServiceLabel = new System.Windows.Forms.Label();
+            this.webView22 = new Microsoft.Web.WebView2.WinForms.WebView2();
+            this.webView21 = new Microsoft.Web.WebView2.WinForms.WebView2();
+            this.timerForWeb = new System.Windows.Forms.Timer(this.components);
+            this.timerForSensors = new System.Windows.Forms.Timer(this.components);
             this.panel1.SuspendLayout();
             this.panel2.SuspendLayout();
             this.panel3.SuspendLayout();
@@ -129,13 +129,9 @@
             this.panel6.SuspendLayout();
             this.panel7.SuspendLayout();
             this.panel8.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.webView22)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.webView21)).BeginInit();
             this.SuspendLayout();
-            // 
-            // timerOneTickPerMinute
-            // 
-            this.timerOneTickPerMinute.Enabled = true;
-            this.timerOneTickPerMinute.Interval = 600000;
-            this.timerOneTickPerMinute.Tick += new System.EventHandler(this.timerOneTickPerMinute_Tick);
             // 
             // timerOneTickPerSecond
             // 
@@ -156,9 +152,9 @@
             this.label1.Text = "Обновлено в";
             this.label1.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             // 
-            // timer1
+            // timerFirstInit
             // 
-            this.timer1.Tick += new System.EventHandler(this.timer1_Tick_1);
+            this.timerFirstInit.Interval = 1000;
             // 
             // label3
             // 
@@ -231,7 +227,7 @@
             this.label8.Name = "label8";
             this.label8.Size = new System.Drawing.Size(34, 13);
             this.label8.TabIndex = 17;
-            this.label8.Text = "11:22";
+            this.label8.Text = "00:00";
             this.label8.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
             // label9
@@ -329,35 +325,6 @@
             this.checkBox1.UseVisualStyleBackColor = false;
             this.checkBox1.CheckedChanged += new System.EventHandler(this.checkBox1_CheckedChanged);
             // 
-            // webBrowser2
-            // 
-            this.webBrowser2.AllowNavigation = false;
-            this.webBrowser2.Location = new System.Drawing.Point(0, 465);
-            this.webBrowser2.Margin = new System.Windows.Forms.Padding(0);
-            this.webBrowser2.MinimumSize = new System.Drawing.Size(20, 20);
-            this.webBrowser2.Name = "webBrowser2";
-            this.webBrowser2.ScriptErrorsSuppressed = true;
-            this.webBrowser2.ScrollBarsEnabled = false;
-            this.webBrowser2.Size = new System.Drawing.Size(736, 151);
-            this.webBrowser2.TabIndex = 28;
-            this.webBrowser2.Url = new System.Uri("https://meteoinfo.ru/zaoknom", System.UriKind.Absolute);
-            this.webBrowser2.WebBrowserShortcutsEnabled = false;
-            this.webBrowser2.DocumentCompleted += new System.Windows.Forms.WebBrowserDocumentCompletedEventHandler(this.webBrowser2_DocumentCompleted);
-            // 
-            // webBrowser3
-            // 
-            this.webBrowser3.AllowNavigation = false;
-            this.webBrowser3.Location = new System.Drawing.Point(0, 616);
-            this.webBrowser3.Margin = new System.Windows.Forms.Padding(0);
-            this.webBrowser3.MinimumSize = new System.Drawing.Size(20, 20);
-            this.webBrowser3.Name = "webBrowser3";
-            this.webBrowser3.ScriptErrorsSuppressed = true;
-            this.webBrowser3.ScrollBarsEnabled = false;
-            this.webBrowser3.Size = new System.Drawing.Size(736, 152);
-            this.webBrowser3.TabIndex = 29;
-            this.webBrowser3.Url = new System.Uri("https://meteoinfo.ru/zaoknom", System.UriKind.Absolute);
-            this.webBrowser3.WebBrowserShortcutsEnabled = false;
-            // 
             // label2
             // 
             this.label2.AllowDrop = true;
@@ -375,12 +342,11 @@
             // 
             this.label17.BackColor = System.Drawing.Color.Transparent;
             this.label17.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F);
-            this.label17.ForeColor = System.Drawing.Color.Red;
+            this.label17.ForeColor = System.Drawing.Color.Transparent;
             this.label17.Location = new System.Drawing.Point(6, 500);
             this.label17.Name = "label17";
             this.label17.Size = new System.Drawing.Size(730, 38);
             this.label17.TabIndex = 31;
-            this.label17.Text = "Данные с метеостанции не поступают";
             this.label17.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // label18
@@ -398,63 +364,54 @@
             this.label18.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             this.label18.Click += new System.EventHandler(this.label18_Click);
             // 
-            // serialPort1
-            // 
-            this.serialPort1.DtrEnable = true;
-            this.serialPort1.PortName = "COM19";
-            this.serialPort1.ReadBufferSize = 2;
-            this.serialPort1.ReadTimeout = 100;
-            this.serialPort1.WriteBufferSize = 2;
-            this.serialPort1.WriteTimeout = 100;
-            // 
             // panel1
             // 
             this.panel1.BackColor = System.Drawing.Color.Transparent;
-            this.panel1.Controls.Add(this.label25);
-            this.panel1.Controls.Add(this.label24);
-            this.panel1.Controls.Add(this.label23);
-            this.panel1.Controls.Add(this.label22);
-            this.panel1.Controls.Add(this.label21);
-            this.panel1.Controls.Add(this.label20);
             this.panel1.Controls.Add(this.label19);
+            this.panel1.Controls.Add(this.label20);
+            this.panel1.Controls.Add(this.label21);
+            this.panel1.Controls.Add(this.label22);
+            this.panel1.Controls.Add(this.label23);
+            this.panel1.Controls.Add(this.label24);
+            this.panel1.Controls.Add(this.label25);
             this.panel1.Location = new System.Drawing.Point(736, 64);
             this.panel1.Margin = new System.Windows.Forms.Padding(0);
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(288, 88);
             this.panel1.TabIndex = 34;
             // 
-            // label25
+            // label19
             // 
-            this.label25.AutoSize = true;
-            this.label25.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
-            this.label25.Location = new System.Drawing.Point(77, 48);
-            this.label25.Name = "label25";
-            this.label25.Size = new System.Drawing.Size(133, 17);
-            this.label25.TabIndex = 40;
-            this.label25.Text = "легкая облачность";
+            this.label19.AutoSize = true;
+            this.label19.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
+            this.label19.Location = new System.Drawing.Point(77, 48);
+            this.label19.Name = "label19";
+            this.label19.Size = new System.Drawing.Size(133, 17);
+            this.label19.TabIndex = 40;
+            this.label19.Text = "легкая облачность";
             // 
-            // label24
+            // label20
             // 
-            this.label24.AutoSize = true;
-            this.label24.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
-            this.label24.Location = new System.Drawing.Point(77, 65);
-            this.label24.Name = "label24";
-            this.label24.Size = new System.Drawing.Size(166, 17);
-            this.label24.TabIndex = 39;
-            this.label24.Text = "ветер северо-западный";
+            this.label20.AutoSize = true;
+            this.label20.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
+            this.label20.Location = new System.Drawing.Point(77, 65);
+            this.label20.Name = "label20";
+            this.label20.Size = new System.Drawing.Size(166, 17);
+            this.label20.TabIndex = 39;
+            this.label20.Text = "ветер северо-западный";
             // 
-            // label23
+            // label21
             // 
-            this.label23.AutoSize = true;
-            this.label23.Font = new System.Drawing.Font("Microsoft Sans Serif", 15F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
-            this.label23.ForeColor = System.Drawing.Color.DarkRed;
-            this.label23.Location = new System.Drawing.Point(126, 23);
-            this.label23.Margin = new System.Windows.Forms.Padding(0);
-            this.label23.Name = "label23";
-            this.label23.Size = new System.Drawing.Size(29, 25);
-            this.label23.TabIndex = 38;
-            this.label23.Text = "-°";
-            this.label23.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
+            this.label21.AutoSize = true;
+            this.label21.Font = new System.Drawing.Font("Microsoft Sans Serif", 15F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
+            this.label21.ForeColor = System.Drawing.Color.DarkRed;
+            this.label21.Location = new System.Drawing.Point(126, 23);
+            this.label21.Margin = new System.Windows.Forms.Padding(0);
+            this.label21.Name = "label21";
+            this.label21.Size = new System.Drawing.Size(37, 25);
+            this.label21.TabIndex = 38;
+            this.label21.Text = "--°";
+            this.label21.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             // 
             // label22
             // 
@@ -467,39 +424,39 @@
             this.label22.Text = "--- мм";
             this.label22.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
-            // label21
+            // label23
             // 
-            this.label21.AutoSize = true;
-            this.label21.Font = new System.Drawing.Font("Microsoft Sans Serif", 15F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
-            this.label21.ForeColor = System.Drawing.Color.DarkBlue;
-            this.label21.Location = new System.Drawing.Point(75, 23);
-            this.label21.Margin = new System.Windows.Forms.Padding(0);
-            this.label21.Name = "label21";
-            this.label21.Size = new System.Drawing.Size(29, 25);
-            this.label21.TabIndex = 36;
-            this.label21.Text = "-°";
-            this.label21.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            this.label23.AutoSize = true;
+            this.label23.Font = new System.Drawing.Font("Microsoft Sans Serif", 15F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
+            this.label23.ForeColor = System.Drawing.Color.DarkBlue;
+            this.label23.Location = new System.Drawing.Point(75, 23);
+            this.label23.Margin = new System.Windows.Forms.Padding(0);
+            this.label23.Name = "label23";
+            this.label23.Size = new System.Drawing.Size(29, 25);
+            this.label23.TabIndex = 36;
+            this.label23.Text = "-°";
+            this.label23.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
-            // label20
+            // label24
             // 
-            this.label20.BackColor = System.Drawing.Color.Transparent;
-            this.label20.Cursor = System.Windows.Forms.Cursors.Default;
-            this.label20.Location = new System.Drawing.Point(9, 28);
-            this.label20.Name = "label20";
-            this.label20.Size = new System.Drawing.Size(50, 50);
-            this.label20.TabIndex = 35;
+            this.label24.BackColor = System.Drawing.Color.Transparent;
+            this.label24.Cursor = System.Windows.Forms.Cursors.Default;
+            this.label24.Location = new System.Drawing.Point(9, 28);
+            this.label24.Name = "label24";
+            this.label24.Size = new System.Drawing.Size(50, 50);
+            this.label24.TabIndex = 35;
             // 
-            // label19
+            // label25
             // 
-            this.label19.AutoSize = true;
-            this.label19.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
-            this.label19.Location = new System.Drawing.Point(9, 2);
-            this.label19.Margin = new System.Windows.Forms.Padding(0);
-            this.label19.Name = "label19";
-            this.label19.Size = new System.Drawing.Size(205, 17);
-            this.label19.TabIndex = 0;
-            this.label19.Text = "00 сентября, воскресенье";
-            this.label19.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            this.label25.AutoSize = true;
+            this.label25.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
+            this.label25.Location = new System.Drawing.Point(9, 2);
+            this.label25.Margin = new System.Windows.Forms.Padding(0);
+            this.label25.Name = "label25";
+            this.label25.Size = new System.Drawing.Size(205, 17);
+            this.label25.TabIndex = 0;
+            this.label25.Text = "00 сентября, воскресенье";
+            this.label25.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
             // panel2
             // 
@@ -1172,12 +1129,6 @@
             this.label75.Text = "Прогноз OpenWeatherMap";
             this.label75.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
-            // timerForSensorsOneTickPer20sec
-            // 
-            this.timerForSensorsOneTickPer20sec.Enabled = true;
-            this.timerForSensorsOneTickPer20sec.Interval = 20000;
-            this.timerForSensorsOneTickPer20sec.Tick += new System.EventHandler(this.timerForSensorsOneTickPer20sec_Tick);
-            // 
             // label13
             // 
             this.label13.BackColor = System.Drawing.Color.Transparent;
@@ -1201,14 +1152,66 @@
             this.label76.TabIndex = 49;
             this.label76.Text = "вл.%";
             // 
+            // ServiceLabel
+            // 
+            this.ServiceLabel.AutoSize = true;
+            this.ServiceLabel.BackColor = System.Drawing.Color.Transparent;
+            this.ServiceLabel.ForeColor = System.Drawing.SystemColors.ActiveBorder;
+            this.ServiceLabel.Location = new System.Drawing.Point(8, 439);
+            this.ServiceLabel.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
+            this.ServiceLabel.Name = "ServiceLabel";
+            this.ServiceLabel.Size = new System.Drawing.Size(71, 13);
+            this.ServiceLabel.TabIndex = 50;
+            this.ServiceLabel.Text = "Service string";
+            // 
+            // webView22
+            // 
+            this.webView22.AllowExternalDrop = true;
+            this.webView22.CreationProperties = null;
+            this.webView22.DefaultBackgroundColor = System.Drawing.Color.Transparent;
+            this.webView22.Location = new System.Drawing.Point(0, 616);
+            this.webView22.Margin = new System.Windows.Forms.Padding(0);
+            this.webView22.Name = "webView22";
+            this.webView22.Size = new System.Drawing.Size(736, 152);
+            this.webView22.TabIndex = 52;
+            this.webView22.ZoomFactor = 1D;
+            // 
+            // webView21
+            // 
+            this.webView21.AllowExternalDrop = true;
+            this.webView21.CreationProperties = null;
+            this.webView21.DefaultBackgroundColor = System.Drawing.Color.Transparent;
+            this.webView21.Location = new System.Drawing.Point(0, 465);
+            this.webView21.Margin = new System.Windows.Forms.Padding(0);
+            this.webView21.Name = "webView21";
+            this.webView21.Size = new System.Drawing.Size(736, 151);
+            this.webView21.TabIndex = 51;
+            this.webView21.ZoomFactor = 1D;
+            // 
+            // timerForWeb
+            // 
+            this.timerForWeb.Enabled = true;
+            this.timerForWeb.Interval = 600000;
+            this.timerForWeb.Tick += new System.EventHandler(this.timerForWeb_Tick);
+            // 
+            // timerForSensors
+            // 
+            this.timerForSensors.Enabled = true;
+            this.timerForSensors.Interval = 10000;
+            this.timerForSensors.Tick += new System.EventHandler(this.timerForSensors_Tick);
+            // 
             // Form1
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
-            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
+            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
+            this.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
             this.BackColor = System.Drawing.SystemColors.Control;
             this.BackgroundImage = global::FromMeteoZaOknom2.Properties.Resources.backForMeteo2;
             this.BackgroundImageLayout = System.Windows.Forms.ImageLayout.Stretch;
-            this.ClientSize = new System.Drawing.Size(1024, 768);
+            this.ClientSize = new System.Drawing.Size(1920, 1080);
+            this.Controls.Add(this.webView22);
+            this.Controls.Add(this.webView21);
+            this.Controls.Add(this.ServiceLabel);
             this.Controls.Add(this.label76);
             this.Controls.Add(this.label13);
             this.Controls.Add(this.label75);
@@ -1221,9 +1224,7 @@
             this.Controls.Add(this.panel2);
             this.Controls.Add(this.panel1);
             this.Controls.Add(this.label18);
-            this.Controls.Add(this.webBrowser2);
             this.Controls.Add(this.label2);
-            this.Controls.Add(this.webBrowser3);
             this.Controls.Add(this.checkBox1);
             this.Controls.Add(this.label16);
             this.Controls.Add(this.label15);
@@ -1261,17 +1262,17 @@
             this.panel7.PerformLayout();
             this.panel8.ResumeLayout(false);
             this.panel8.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.webView22)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.webView21)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
         }
 
         #endregion
-
-        private System.Windows.Forms.Timer timerOneTickPerMinute;
         private System.Windows.Forms.Timer timerOneTickPerSecond;
         private System.Windows.Forms.Label label1;
-        private System.Windows.Forms.Timer timer1;
+        private System.Windows.Forms.Timer timerFirstInit;
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.Label label4;
         private System.Windows.Forms.Label label5;
@@ -1286,20 +1287,17 @@
         private System.Windows.Forms.Label label15;
         private System.Windows.Forms.Label label16;
         private System.Windows.Forms.CheckBox checkBox1;
-        private System.Windows.Forms.WebBrowser webBrowser2;
-        private System.Windows.Forms.WebBrowser webBrowser3;
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.Label label17;
         private System.Windows.Forms.Label label18;
-        private System.IO.Ports.SerialPort serialPort1;
         private System.Windows.Forms.Panel panel1;
-        private System.Windows.Forms.Label label19;
-        private System.Windows.Forms.Label label20;
-        private System.Windows.Forms.Label label21;
-        private System.Windows.Forms.Label label22;
-        private System.Windows.Forms.Label label23;
-        private System.Windows.Forms.Label label24;
         private System.Windows.Forms.Label label25;
+        private System.Windows.Forms.Label label24;
+        private System.Windows.Forms.Label label23;
+        private System.Windows.Forms.Label label22;
+        private System.Windows.Forms.Label label21;
+        private System.Windows.Forms.Label label20;
+        private System.Windows.Forms.Label label19;
         private System.Windows.Forms.Panel panel2;
         private System.Windows.Forms.Label label26;
         private System.Windows.Forms.Label label27;
@@ -1357,9 +1355,13 @@
         private System.Windows.Forms.Label label73;
         private System.Windows.Forms.Label label74;
         private System.Windows.Forms.Label label75;
-        private System.Windows.Forms.Timer timerForSensorsOneTickPer20sec;
         private System.Windows.Forms.Label label13;
         private System.Windows.Forms.Label label76;
+        private System.Windows.Forms.Label ServiceLabel;
+        private Microsoft.Web.WebView2.WinForms.WebView2 webView22;
+        private Microsoft.Web.WebView2.WinForms.WebView2 webView21;
+        private System.Windows.Forms.Timer timerForWeb;
+        private System.Windows.Forms.Timer timerForSensors;
     }
 }
 
