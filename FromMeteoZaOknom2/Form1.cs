@@ -34,6 +34,7 @@ namespace FromMeteoZaOknom2
             InitializeComponent();
             CacheWeatherPanels();
             SetBrowserFeatureControl();
+            this.Load += new System.EventHandler(this.Form1_Load);
             sensorConfig["East"] = (sensorConfig["East"].ip, sensorConfig["East"].correction, label7, sensorConfig["East"].counter);
             sensorConfig["West"] = (sensorConfig["West"].ip, sensorConfig["West"].correction, label6, sensorConfig["West"].counter);
             sensorConfig["Inner"] = (sensorConfig["Inner"].ip, sensorConfig["Inner"].correction, label15, sensorConfig["Inner"].counter);
@@ -52,6 +53,7 @@ namespace FromMeteoZaOknom2
         {
             //WriteLog();
 
+            FormScalerDynamic.ScaleForm(this); //автоматическое масштабирования под размер экрана
             this.FormBorderStyle = FormBorderStyle.None;
             this.WindowState = FormWindowState.Maximized;
             this.Bounds = Screen.PrimaryScreen.Bounds;
