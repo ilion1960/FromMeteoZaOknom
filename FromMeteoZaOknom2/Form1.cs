@@ -34,7 +34,7 @@ namespace FromMeteoZaOknom2
             InitializeComponent();
             CacheWeatherPanels();
             SetBrowserFeatureControl();
-            this.Load += new System.EventHandler(this.Form1_Load);
+            //this.Load += new System.EventHandler(this.Form1_Load); //масштабирование
             sensorConfig["East"] = (sensorConfig["East"].ip, sensorConfig["East"].correction, label7, sensorConfig["East"].counter);
             sensorConfig["West"] = (sensorConfig["West"].ip, sensorConfig["West"].correction, label6, sensorConfig["West"].counter);
             sensorConfig["Inner"] = (sensorConfig["Inner"].ip, sensorConfig["Inner"].correction, label15, sensorConfig["Inner"].counter);
@@ -51,20 +51,20 @@ namespace FromMeteoZaOknom2
 
         private async void Form1_Load(object sender, EventArgs e)
         {
-            //WriteLog();
+            // Установить фиксированный размер формы 1920x1080 и стиль для разработки
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.Size = new Size(1920, 1080);
+            this.StartPosition = FormStartPosition.CenterScreen;
 
-            FormScalerDynamic.ScaleForm(this); //автоматическое масштабирования под размер экрана
-            this.FormBorderStyle = FormBorderStyle.None;
-            this.WindowState = FormWindowState.Maximized;
-            this.Bounds = Screen.PrimaryScreen.Bounds;
             LogError($"Размер формы: {this.Size.Width}x{this.Size.Height}, Экран: {Screen.PrimaryScreen.Bounds.Width}x{Screen.PrimaryScreen.Bounds.Height}");
 
             timerForSensors.Enabled = true;
             LogError("Таймер timerForSensors включён");
-            timerForSensors.Interval = 10*1000; // 10 сек.
+            timerForSensors.Interval = 10 * 1000; // 10 сек.
             timerForWeb.Enabled = true;
             LogError("Таймер timerForWeb включён");
-            timerForWeb.Interval = 10*60000; // 10 мин.
+            timerForWeb.Interval = 10 * 60000; // 10 мин.
             Cursor.Position = new Point(0, 0);
             await LoadInitialDataAsync();
         }
@@ -539,7 +539,7 @@ namespace FromMeteoZaOknom2
                 ForeColor = Color.FromArgb(64, 64, 64);
                 BackgroundImage = Properties.Resources.NightForMeteo;
                 label9.ForeColor = Color.FromArgb(64, 64, 64);
-                var controls = new List<Control> { webView21, webView22, label10, label17, label16, label1, label8, label9, label18, checkBox1 };
+                var controls = new List<Control> { webView21, webView22, label10, label16, label1, label8, label9, label18, checkBox1 };
                 controls.ForEach(control => control.Visible = false);
                 Controls.OfType<Panel>().ToList().ForEach(panel => panel.Visible = false);
             }
@@ -559,7 +559,7 @@ namespace FromMeteoZaOknom2
                 ForeColor = SystemColors.ControlText;
                 BackgroundImage = Properties.Resources.backForMeteo2;
                 label9.ForeColor = SystemColors.ControlText;
-                var controls = new List<Control> { webView21, webView22, label10, label17, label16, label1, label8, label9, label18, checkBox1 };
+                var controls = new List<Control> { webView21, webView22, label10, label16, label1, label8, label9, label18, checkBox1 };
                 controls.ForEach(control => control.Visible = true);
                 Controls.OfType<Panel>().ToList().ForEach(panel => panel.Visible = true);
             }
