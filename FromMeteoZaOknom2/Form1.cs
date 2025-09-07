@@ -16,6 +16,8 @@ namespace FromMeteoZaOknom2
 {
     public partial class Form1 : Form
     {
+        private System.Windows.Forms.Panel titlePanel;
+        private System.Windows.Forms.Label titleLabel;
         private readonly CultureInfo russianCulture = CultureInfo.CreateSpecificCulture("ru-RU");
         private readonly HttpClient httpClient = new HttpClient();
         private readonly Dictionary<int, Label[]> weatherPanels = new Dictionary<int, Label[]>();
@@ -52,7 +54,7 @@ namespace FromMeteoZaOknom2
         private async void Form1_Load(object sender, EventArgs e)
         {
             // Установить фиксированный размер формы 1920x1080 и стиль для разработки
-            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.FormBorderStyle = FormBorderStyle.None;
             this.MaximizeBox = false;
             this.Size = new Size(1920, 1080);
             this.StartPosition = FormStartPosition.CenterScreen;
