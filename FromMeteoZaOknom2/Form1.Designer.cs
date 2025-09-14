@@ -927,6 +927,11 @@
             this.BackgroundImage = global::FromMeteoZaOknom2.Properties.Resources.backForMeteo2;
             this.BackgroundImageLayout = System.Windows.Forms.ImageLayout.Stretch;
             this.ClientSize = new System.Drawing.Size(1920, 1080);
+            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
+            this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+            this.ControlBox = false;
             this.Controls.Add(this.webView22);
             this.Controls.Add(this.webView21);
             this.Controls.Add(this.label76);
@@ -954,10 +959,8 @@
             this.Controls.Add(this.label4);
             this.Controls.Add(this.label10);
             this.Controls.Add(this.label13);
-            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
             this.KeyPreview = true;
             this.Margin = new System.Windows.Forms.Padding(4);
-            this.MaximizeBox = false;
             this.Name = "Form1";
             this.Text = "Погода";
             this.Load += new System.EventHandler(this.Form1_Load);

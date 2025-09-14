@@ -54,13 +54,6 @@ namespace FromMeteoZaOknom2
         private async void Form1_Load(object sender, EventArgs e)
         {
             // Установить фиксированный размер формы 1920x1080 и стиль для разработки
-            this.FormBorderStyle = FormBorderStyle.None;
-            this.MaximizeBox = false;
-            this.Size = new Size(1920, 1080);
-            this.StartPosition = FormStartPosition.CenterScreen;
-
-            LogError($"Размер формы: {this.Size.Width}x{this.Size.Height}, Экран: {Screen.PrimaryScreen.Bounds.Width}x{Screen.PrimaryScreen.Bounds.Height}");
-
             timerForSensors.Enabled = true;
             LogError("Таймер timerForSensors включён");
             timerForSensors.Interval = 10 * 1000; // 10 сек.
