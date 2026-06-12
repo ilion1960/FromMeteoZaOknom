@@ -12,6 +12,8 @@ using Newtonsoft.Json;
 using System.IO;
 using Microsoft.Web.WebView2.WinForms;
 
+//Разрешение монитора в коридоре 1920 х 1080, формат 16:9
+
 namespace FromMeteoZaOknom2
 {
     public partial class Form1 : Form
@@ -28,7 +30,7 @@ namespace FromMeteoZaOknom2
             { "Inner", ("http://192.168.137.99:8099", 0, null /* label15 */, 0) }
         };
         private bool changeColorMessageEnable;
-        private const string OpenWeatherApiUrl = "http://api.openweathermap.org/data/2.5/forecast/daily?q=Moscow,ru&mode=json&units=metric&lang=ru&cnt=10&APPID=274135263c7242c24cb8c6e893bb4706";
+        private const string OpenWeatherApiUrl = "http://api.openweathermap.org/data/2.5/forecast/daily?q=Moscow,ru&mode=json&units=metric&lang=ru&cnt=5&APPID=274135263c7242c24cb8c6e893bb4706";
         private const string MeteoInfoUrl = "https://meteoinfo.ru/zaoknom";
 
         public Form1()
@@ -88,7 +90,7 @@ namespace FromMeteoZaOknom2
         {
             if (BackColor == Color.Black) return;
 
-            label8.Text = DateTime.Now.ToString("HH:mm", russianCulture);
+            label8.Text = DateTime.Now.ToString("HH:mm", russianCulture); //Обновлено в HH:mm
 
             try
             {
@@ -123,6 +125,7 @@ namespace FromMeteoZaOknom2
             try
             {
                 string json = await httpClient.GetStringAsync(OpenWeatherApiUrl);
+                //MessageBox.Show(json);
                 var data = JsonConvert.DeserializeObject<RootObject>(json);
 
                 if (data?.list == null) throw new Exception("Неверный формат данных OpenWeather");
@@ -134,6 +137,7 @@ namespace FromMeteoZaOknom2
                     var labels = weatherPanels[i];
 
                     labels[6].Text = UnixDateTimeToDateTime(forecast.dt.ToString()).ToString("d MMMM, dddd", russianCulture);
+                    //MessageBox.Show(labels[6].Text);
                     labels[5].BackgroundImage = weatherPicture.WeatherIconToPicture(forecast.weather[0].icon);
 
                     int nightTemp = Convert.ToInt32(Math.Round(forecast.temp.night));
@@ -169,8 +173,8 @@ namespace FromMeteoZaOknom2
 
             try
             {
-                await NavigateWebView2Async(webView21, MeteoInfoUrl, 480);
-                await NavigateWebView2Async(webView22, MeteoInfoUrl, 1025);
+                await NavigateWebView2Async(webView21, MeteoInfoUrl, 435);
+                await NavigateWebView2Async(webView22, MeteoInfoUrl, 980);
             }
             catch (Exception ex)
             {
